@@ -52,6 +52,7 @@ namespace lproxy
                             case "list": ShowProxies(); break;
                             case "hide": HideLog(); break;
                             case "show": HideLog(false); break;
+                            case "clear": Console.Clear(); break;
                         }
                     }
                 }

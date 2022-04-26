@@ -32,6 +32,8 @@ namespace ProxyLoginAutomator
             ProxyServer.BeforeResponse += OnResponse;
             ProxyServer.AfterResponse+= OnResponse;
             ProxyServer.ExceptionFunc = OnExceptionFunc;
+
+            
         }
 
 
@@ -41,13 +43,27 @@ namespace ProxyLoginAutomator
         }
         public void Start(int localPort, string remoteHost, int remotePort, string user = "", string pwd = "")
         {
-            AddEndPoint(localPort, remoteHost, remotePort, user, pwd);
+            if (!string.IsNullOrWhiteSpace(remoteHost))
+            {
+                AddEndPoint(localPort, remoteHost, remotePort, user, pwd);
+            }
+            else
+            {
+                AddEndPoint(localPort);
+            }
             Start();
         }
 
         public void Start(int localPort, string proxyServer)
         {
-            AddEndPoint(localPort, proxyServer);
+            if (!string.IsNullOrWhiteSpace(proxyServer))
+            {
+                AddEndPoint(localPort, proxyServer);
+            }
+            else
+            {
+                AddEndPoint(localPort);
+            }
             Start();
         }
 
@@ -78,15 +94,23 @@ namespace ProxyLoginAutomator
             //if (!string.IsNullOrWhiteSpace(remoteHost))
             if (!string.IsNullOrWhiteSpace(remoteHost) && !UpStreamHttpProxies.ContainsKey(localPort))
             {
-                var tcpProxy = new ExplicitProxyEndPoint(IPAddress.Any, localPort, true);
-                ProxyServer.AddEndPoint(tcpProxy);
+                AddEndPoint(localPort);
 
                 var upStreamProxy = new ExternalProxy(remoteHost, remotePort, user, pwd) { ProxyType = ExternalProxyType.Http };
                 UpStreamHttpProxies.TryAdd(localPort, upStreamProxy);
-
-                Console.WriteLine("LocalProxyServer Listening on '{0}' endpoint at Ip {1} and port: {2} ",
-                    tcpProxy.GetType().Name, tcpProxy.IpAddress, tcpProxy.Port);
             }
+        }
+        public void AddEndPoint(int localPort)
+        {
+            // linux: false , because cannot be decrypt ssl under linux
+            // win: true or false
+            var decryptSsl = false;
+            //var tcpProxy = new ExplicitProxyEndPoint(IPAddress.Any, localPort, decryptSsl);
+            var tcpProxy = new ExplicitProxyEndPoint(IPAddress.Any, localPort, decryptSsl);
+            ProxyServer.AddEndPoint(tcpProxy);
+
+            Console.WriteLine("LocalProxyServer Listening on '{0}' endpoint at Ip {1} and port: {2} ",
+                tcpProxy.GetType().Name, tcpProxy.IpAddress, tcpProxy.Port);
         }
 
         public void Stop()
@@ -136,6 +160,10 @@ namespace ProxyLoginAutomator
             {
                 ShowLog($"client[{ev.ProxyEndPoint.Port}][{cep.Address.ToString()}:{cep.Port}] > proxy[{x.HostName}:{x.Port}]");
                 ev.CustomUpStreamProxy = x;
+            }
+            else
+            {
+                ShowLog($"client[{ev.ProxyEndPoint.Port}][{cep.Address.ToString()}:{cep.Port}] > direct");
             }
 
             ShowLog($"{request.Method} {request.Url}");

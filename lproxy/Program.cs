@@ -6,8 +6,8 @@ using lproxy;
 using ProxyLoginAutomator;
 
 #if DEBUG
-
-//args = new string[] { "-p", "6789", "--proxy-server", "192.168.242.38:8800" };
+//args = new string[] { "-p", "6789" };
+args = File.ReadAllLines("cmd.txt")[0].Split(' ');
 #endif
 
 LProxy proxy = new();
