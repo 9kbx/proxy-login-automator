@@ -49,7 +49,7 @@ namespace lproxy
                         {
                             case "help": ShowCmdHelp(); break;
                             case "add": ParserCommandlineOptions(args, AddNewEndPoint); break;
-                            case "proxies": ShowProxies(); break;
+                            case "list": ShowProxies(); break;
                             case "hide": HideLog(); break;
                             case "show": HideLog(false); break;
                         }

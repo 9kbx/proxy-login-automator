@@ -7,7 +7,7 @@ using ProxyLoginAutomator;
 
 #if DEBUG
 
-args = new string[] { "-p", "6789", "--proxy-server", "192.168.242.38:8800" };
+//args = new string[] { "-p", "6789", "--proxy-server", "192.168.242.38:8800" };
 #endif
 
 LProxy proxy = new();

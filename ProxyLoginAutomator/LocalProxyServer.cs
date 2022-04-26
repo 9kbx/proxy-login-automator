@@ -15,7 +15,7 @@ namespace ProxyLoginAutomator
         //string RemoteUser { get; set; }
         //string RemotePwd { get; set; }
 
-        public bool ShowDebugLog { get; set; } = false;
+        public bool ShowDebugLog { get; set; } = true;
 
         /// <summary>
         /// remote proxies[client > local port > remote proxy > website]
@@ -24,13 +24,16 @@ namespace ProxyLoginAutomator
 
         public ProxyServer ProxyServer { get; set; } = new ProxyServer();
 
-        public LocalProxyServer(bool showDebugLog = false)
+        public LocalProxyServer(bool showDebugLog = true)
         {
             ShowDebugLog = showDebugLog;
             ProxyServer.ServerCertificateValidationCallback += OnServerCertificateValidation;
             ProxyServer.BeforeRequest += OnBeforeRequest;
+            ProxyServer.BeforeResponse += OnResponse;
+            ProxyServer.AfterResponse+= OnResponse;
             ProxyServer.ExceptionFunc = OnExceptionFunc;
         }
+
 
         void Start()
         {
@@ -78,7 +81,8 @@ namespace ProxyLoginAutomator
                 var tcpProxy = new ExplicitProxyEndPoint(IPAddress.Any, localPort, true);
                 ProxyServer.AddEndPoint(tcpProxy);
 
-                UpStreamHttpProxies.TryAdd(localPort, new ExternalProxy(remoteHost, remotePort, user, pwd));
+                var upStreamProxy = new ExternalProxy(remoteHost, remotePort, user, pwd) { ProxyType = ExternalProxyType.Http };
+                UpStreamHttpProxies.TryAdd(localPort, upStreamProxy);
 
                 Console.WriteLine("LocalProxyServer Listening on '{0}' endpoint at Ip {1} and port: {2} ",
                     tcpProxy.GetType().Name, tcpProxy.IpAddress, tcpProxy.Port);
@@ -117,22 +121,31 @@ namespace ProxyLoginAutomator
         async Task OnBeforeRequest(object sender, SessionEventArgs ev)
         {
             var request = ev.HttpClient.Request;
-            request.Headers.AddHeader("accept-language", "en;q=0.8");
+            var cep = ev.ClientEndPoint;
+
 #if DEBUG
-            ShowLog($"ClientEndPoint.Port\t{ev.ClientEndPoint.Port}");
-            ShowLog($"ClientLocalEndPoint.Port\t{ev.ClientLocalEndPoint.Port}");
-            ShowLog($"ClientRemoteEndPoint.Port\t{ev.ClientRemoteEndPoint.Port}");
-            ShowLog($"LocalEndPoint.Port\t{ev.LocalEndPoint.Port}");
-            ShowLog($"LocalEndPoint.Port\t{ev.ProxyEndPoint.Port}");
+
+            //ShowLog($"ClientEndPoint.Port\t{ev.ClientEndPoint.Port}");
+            //ShowLog($"ClientLocalEndPoint.Port\t{ev.ClientLocalEndPoint.Port}");
+            //ShowLog($"ClientRemoteEndPoint.Port\t{ev.ClientRemoteEndPoint.Port}");
+            //ShowLog($"LocalEndPoint.Port\t{ev.LocalEndPoint.Port}");
+            //ShowLog($"LocalEndPoint.Port\t{ev.ProxyEndPoint.Port}");
 #endif
 
-            if (UpStreamHttpProxies.TryGetValue(ev.ClientLocalEndPoint.Port, out var x))
+            if (UpStreamHttpProxies.TryGetValue(ev.ProxyEndPoint.Port, out var x))
             {
-                ShowLog($"client:{ev.ClientLocalEndPoint.Port}\tcustom up stream proxy:{x.HostName}:{x.Port}");
+                ShowLog($"client[{ev.ProxyEndPoint.Port}][{cep.Address.ToString()}:{cep.Port}] > proxy[{x.HostName}:{x.Port}]");
                 ev.CustomUpStreamProxy = x;
             }
 
             ShowLog($"{request.Method} {request.Url}");
+
+            await Task.CompletedTask;
+        }
+        async Task OnResponse(object sender, SessionEventArgs ev)
+        {
+            //Console.WriteLine(ev.HttpClient.Request.HeaderText);
+            //Console.WriteLine(ev.HttpClient.Response.HeaderText);
 
             await Task.CompletedTask;
         }
@@ -151,7 +164,7 @@ namespace ProxyLoginAutomator
 
         void ShowLog(string log)
         {
-            if (ShowDebugLog) Console.WriteLine(log);
+            if (ShowDebugLog) Console.WriteLine($"[{DateTime.Now}]{log}");
         }
     }
 }

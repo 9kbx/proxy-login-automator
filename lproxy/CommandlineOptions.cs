@@ -18,7 +18,7 @@ namespace lproxy
         [Option("proxy-server-src", HelpText = "remote proxy list from local file or http url, format:local port:ip:port:user:pwd, allow multiple lines", Required = false)]
         public string? ProxyServerSrc { get; set; }
 
-        [Option("log", HelpText = "show debug log", Required = false)]
+        [Option("log", Default = true, HelpText = "show debug log", Required = false)]
         public bool ShowLog { get; set; }
     }
 }
