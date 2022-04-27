@@ -56,7 +56,7 @@ Selenium-Proxy-Authentication.Chrome](https://github.com/mahdibland/Selenium-Pro
 
 ## 其它功能
 
-> lproxy运行时可随时添加端口和外部代理
+> lproxy运行时执行内部命令
 
 ```
 list        显示lproxy所有本地端口和外部代理列表
