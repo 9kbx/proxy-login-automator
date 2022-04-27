@@ -65,14 +65,14 @@ show        在控制台显示日志
 hide        在控制台不显示日志
 add         绑定新的外部代理（本地端口不能重复）
 ```
-`add -p 本地端口 --proxy-server 外部代理IP:端口:用户名:密码`
+`add -p 本地端口 --proxy-server host:port:user:pwd`
 
-`add -p 本地端口 --proxy-server 外部代理IP:端口`
+`add -p 本地端口 --proxy-server host:port`
 
 #### Proxy Format
 
-* ✅ Host:Port:Username:Password</br>
-* ✅ Host:Port
+* ✅ host:port:user:pwd</br>
+* ✅ host:port
 
 ## 用到的第三方库
 
