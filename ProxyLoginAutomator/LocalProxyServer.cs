@@ -16,24 +16,25 @@ namespace ProxyLoginAutomator
         //string RemotePwd { get; set; }
 
         public bool ShowDebugLog { get; set; } = true;
-
+        public bool OnlyAllowWhitelist { get; set; } = false;
         /// <summary>
-        /// remote proxies[client > local port > remote proxy > website]
+        /// remote proxies
+        /// <para>int=local port, IExternalProxy=remote proxy</para>
+        /// <para>client > local port > remote proxy > website</para>
         /// </summary>
         ConcurrentDictionary<int, IExternalProxy> UpStreamHttpProxies { get; set; } = new ConcurrentDictionary<int, IExternalProxy>();
 
         public ProxyServer ProxyServer { get; set; } = new ProxyServer();
 
-        public LocalProxyServer(bool showDebugLog = true)
+        public LocalProxyServer(bool showDebugLog = true, bool onlyAllowWhitelist = false)
         {
             ShowDebugLog = showDebugLog;
+            OnlyAllowWhitelist = onlyAllowWhitelist;
             ProxyServer.ServerCertificateValidationCallback += OnServerCertificateValidation;
             ProxyServer.BeforeRequest += OnBeforeRequest;
             ProxyServer.BeforeResponse += OnResponse;
             ProxyServer.AfterResponse+= OnResponse;
             ProxyServer.ExceptionFunc = OnExceptionFunc;
-
-            
         }
 
 
@@ -147,6 +148,10 @@ namespace ProxyLoginAutomator
             var request = ev.HttpClient.Request;
             var cep = ev.ClientEndPoint;
 
+            if (OnlyAllowWhitelist)
+            {
+                
+            }
 #if DEBUG
 
             //ShowLog($"ClientEndPoint.Port\t{ev.ClientEndPoint.Port}");

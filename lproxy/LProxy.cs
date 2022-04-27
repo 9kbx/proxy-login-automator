@@ -20,7 +20,7 @@ namespace lproxy
 
         void RunProxy(CommandlineOptions options)
         {
-            Server = new LocalProxyServer(options.ShowLog);
+            Server = new LocalProxyServer(options.ShowLog, options.EnableWhitelist);
 
             Server.Start(options.LocalPort, options.ProxyServer);
 
