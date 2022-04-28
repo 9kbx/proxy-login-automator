@@ -24,6 +24,9 @@ namespace lproxy
 
             Server.Start(options.LocalPort, options.ProxyServer);
 
+            Console.WriteLine("proxy list");
+            ShowProxies();
+
             WaitCommand();
 
             Server.Stop();
@@ -114,7 +117,7 @@ namespace lproxy
         //}
         void HideLog(bool hide = true)
         {
-            Server.ShowDebugLog = !hide;
+            Server.showDebugLog = !hide;
         }
     }
 }

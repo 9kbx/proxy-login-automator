@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Net;
+using System.Text;
 using Titanium.Web.Proxy;
 using Titanium.Web.Proxy.EventArguments;
 using Titanium.Web.Proxy.Exceptions;
@@ -9,38 +10,84 @@ namespace ProxyLoginAutomator
 {
     public class LocalProxyServer
     {
-        //int DefaultLocalPort { get; set; } = 10010;
-        //string RemoteHost { get; set; }
-        //int RemotePort { get; set; }
-        //string RemoteUser { get; set; }
-        //string RemotePwd { get; set; }
-
-        public bool ShowDebugLog { get; set; } = true;
-        public bool OnlyAllowWhitelist { get; set; } = false;
+        bool decryptSsl = true;
+        public bool showDebugLog { get; set; } = true;
+        public bool onlyAllowWhitelist { get; set; } = false;
         /// <summary>
         /// remote proxies
         /// <para>int=local port, IExternalProxy=remote proxy</para>
         /// <para>client > local port > remote proxy > website</para>
         /// </summary>
-        ConcurrentDictionary<int, IExternalProxy> UpStreamHttpProxies { get; set; } = new ConcurrentDictionary<int, IExternalProxy>();
+        ConcurrentDictionary<int, IExternalProxy> upStreamHttpProxies { get; set; } = new ConcurrentDictionary<int, IExternalProxy>();
 
-        public ProxyServer ProxyServer { get; set; } = new ProxyServer();
+        public ProxyServer proxyServer { get; set; } = new ProxyServer();
 
         public LocalProxyServer(bool showDebugLog = true, bool onlyAllowWhitelist = false)
         {
-            ShowDebugLog = showDebugLog;
-            OnlyAllowWhitelist = onlyAllowWhitelist;
-            ProxyServer.ServerCertificateValidationCallback += OnServerCertificateValidation;
-            ProxyServer.BeforeRequest += OnBeforeRequest;
-            ProxyServer.BeforeResponse += OnResponse;
-            ProxyServer.AfterResponse+= OnResponse;
-            ProxyServer.ExceptionFunc = OnExceptionFunc;
+            this.showDebugLog = showDebugLog;
+            this.onlyAllowWhitelist = onlyAllowWhitelist;
+
+            proxyServer.EnableHttp2 = true;
+            proxyServer.TcpTimeWaitSeconds = 10;
+            proxyServer.ConnectionTimeOutSeconds = 15;
+            proxyServer.ReuseSocket = true;
+            proxyServer.EnableConnectionPool = false;
+            proxyServer.ForwardToUpstreamGateway = false;
+            proxyServer.CertificateManager.SaveFakeCertificates = true;
+
+            //proxyServer.ProxyBasicAuthenticateFunc = async (args, userName, password) =>
+            //{
+            //    await Task.Delay(0);
+            //    return true;
+            //};
+
+            proxyServer.ServerCertificateValidationCallback += OnServerCertificateValidation;
+            
+            proxyServer.BeforeRequest += OnBeforeRequest;
+            //proxyServer.BeforeResponse += OnResponse;
+            //proxyServer.AfterResponse+= OnResponse;
+            proxyServer.ExceptionFunc = OnExceptionFunc;
+            //proxyServer.GetCustomUpStreamProxyFunc = onGetCustomUpStreamProxyFunc;
+            //proxyServer.CustomUpStreamProxyFailureFunc = onCustomUpStreamProxyFailureFunc;
+
+            //proxyServer.GetCustomUpStreamProxyFunc = async (ev) =>
+            //{
+            //    UpStreamHttpProxies.TryGetValue(ev.ProxyEndPoint.Port, out var x);
+            //    await Task.CompletedTask;
+            //    return x;
+            //};
+            //proxyServer.CustomUpStreamProxyFailureFunc = async (ev) =>
+            //{
+            //    UpStreamHttpProxies.TryGetValue(ev.ProxyEndPoint.Port, out var x);
+            //    await Task.CompletedTask;
+            //    return x;
+            //};
+
+            //if (RunTime.IsWindows)
+            //{
+            //    proxyServer.SetAsSystemProxy(explicitEndPoint, ProxyProtocolType.AllHttp);
+            //}
         }
 
+        async Task<IExternalProxy> onGetCustomUpStreamProxyFunc(SessionEventArgsBase ev)
+        {
+            upStreamHttpProxies.TryGetValue(ev.ProxyEndPoint.Port, out var x);
+            //await Task.CompletedTask;
+            await Task.Delay(0);
+            return x;
+        }
+
+        private async Task<IExternalProxy> onCustomUpStreamProxyFailureFunc(SessionEventArgsBase ev)
+        {
+            upStreamHttpProxies.TryGetValue(ev.ProxyEndPoint.Port, out var x);
+            //await Task.CompletedTask;
+            await Task.Delay(0);
+            return x;
+        }
 
         void Start()
         {
-            if (!ProxyServer.ProxyRunning) ProxyServer.Start();
+            if (!proxyServer.ProxyRunning) proxyServer.Start();
         }
         public void Start(int localPort, string remoteHost, int remotePort, string user = "", string pwd = "")
         {
@@ -93,22 +140,30 @@ namespace ProxyLoginAutomator
         public void AddEndPoint(int localPort, string remoteHost, int remotePort, string user = "", string pwd = "")
         {
             //if (!string.IsNullOrWhiteSpace(remoteHost))
-            if (!string.IsNullOrWhiteSpace(remoteHost) && !UpStreamHttpProxies.ContainsKey(localPort))
+            if (!string.IsNullOrWhiteSpace(remoteHost) && !upStreamHttpProxies.ContainsKey(localPort))
             {
                 AddEndPoint(localPort);
 
+                //UpStreamHttpProxies.TryAdd(localPort, new ExternalProxy
+                //{
+                //    HostName = remoteHost,
+                //    Port = remotePort,
+                //    Password = user,
+                //    UserName = pwd,
+                //    BypassLocalhost = true,
+                //    UseDefaultCredentials = false,
+
+                //});
                 var upStreamProxy = new ExternalProxy(remoteHost, remotePort, user, pwd) { ProxyType = ExternalProxyType.Http };
-                UpStreamHttpProxies.TryAdd(localPort, upStreamProxy);
+                
+                upStreamHttpProxies.TryAdd(localPort, upStreamProxy);
             }
         }
         public void AddEndPoint(int localPort)
         {
-            // linux: false , because cannot be decrypt ssl under linux
-            // win: true or false
-            var decryptSsl = false;
-            //var tcpProxy = new ExplicitProxyEndPoint(IPAddress.Any, localPort, decryptSsl);
             var tcpProxy = new ExplicitProxyEndPoint(IPAddress.Any, localPort, decryptSsl);
-            ProxyServer.AddEndPoint(tcpProxy);
+            tcpProxy.BeforeTunnelConnectRequest += onBeforeTunnelConnectRequest;
+            proxyServer.AddEndPoint(tcpProxy);
 
             Console.WriteLine("LocalProxyServer Listening on '{0}' endpoint at Ip {1} and port: {2} ",
                 tcpProxy.GetType().Name, tcpProxy.IpAddress, tcpProxy.Port);
@@ -116,18 +171,18 @@ namespace ProxyLoginAutomator
 
         public void Stop()
         {
-            ProxyServer.BeforeRequest -= OnBeforeRequest;
-            ProxyServer.ServerCertificateValidationCallback -= OnServerCertificateValidation;
+            proxyServer.BeforeRequest -= OnBeforeRequest;
+            proxyServer.ServerCertificateValidationCallback -= OnServerCertificateValidation;
 
-            ProxyServer.Stop();
+            proxyServer.Stop();
         }
 
         public Dictionary<int, string> GetUpStreamProxies()
         {
             var dic = new Dictionary<int, string>();
-            foreach (var localPort in UpStreamHttpProxies.Keys)
+            foreach (var localPort in upStreamHttpProxies.Keys)
             {
-                if (UpStreamHttpProxies.TryGetValue(localPort, out var px))
+                if (upStreamHttpProxies.TryGetValue(localPort, out var px))
                 {
                     dic.Add(localPort, $"{px.HostName}:{px.Port}");
                 }
@@ -140,38 +195,53 @@ namespace ProxyLoginAutomator
             // If our destination server has only the domain name in the certificate, we might check it
             // or simply don't care (FOR DEVELOPMENT ONLY).
             ev.IsValid = true;
+
+            //if (ev.SslPolicyErrors == System.Net.Security.SslPolicyErrors.None)
+            //    ev.IsValid = true;
+
             await Task.CompletedTask;
         }
 
+        async Task onBeforeTunnelConnectRequest(object sender, TunnelConnectSessionEventArgs e)
+        {
+            var clientLocalPort = e.ClientLocalEndPoint.Port;
+            if (upStreamHttpProxies.TryGetValue(clientLocalPort, out var x))
+            {
+                e.CustomUpStreamProxy = x;
+            }
+            await Task.CompletedTask;
+        }
         async Task OnBeforeRequest(object sender, SessionEventArgs ev)
         {
+            //ev.CustomUpStreamProxy = GetCustomUpStreamProxy(ev);
+
             var request = ev.HttpClient.Request;
-            var cep = ev.ClientEndPoint;
 
-            if (OnlyAllowWhitelist)
+            if (onlyAllowWhitelist)
             {
-                
+                // is white proxy > allow
+                // else > deny
             }
-#if DEBUG
 
-            //ShowLog($"ClientEndPoint.Port\t{ev.ClientEndPoint.Port}");
-            //ShowLog($"ClientLocalEndPoint.Port\t{ev.ClientLocalEndPoint.Port}");
-            //ShowLog($"ClientRemoteEndPoint.Port\t{ev.ClientRemoteEndPoint.Port}");
-            //ShowLog($"LocalEndPoint.Port\t{ev.LocalEndPoint.Port}");
-            //ShowLog($"LocalEndPoint.Port\t{ev.ProxyEndPoint.Port}");
-#endif
+            // onBeforeTunnelConnectRequest set CustomUpStreamProxy
+            Console.WriteLine($"ev.CustomUpStreamProxy is null [ {ev.CustomUpStreamProxy == null} ]");
 
-            if (UpStreamHttpProxies.TryGetValue(ev.ProxyEndPoint.Port, out var x))
+            var log = new StringBuilder();
+            var cep = ev.ClientRemoteEndPoint;
+
+            if (upStreamHttpProxies.TryGetValue(ev.ProxyEndPoint.Port, out var x))
             {
-                ShowLog($"client[{ev.ProxyEndPoint.Port}][{cep.Address.ToString()}:{cep.Port}] > proxy[{x.HostName}:{x.Port}]");
+                log.Append($"client[{ev.ProxyEndPoint.Port}][{cep.Address.ToString()}:{cep.Port}] > proxy[{x.HostName}:{x.Port}] ");
                 ev.CustomUpStreamProxy = x;
             }
             else
             {
-                ShowLog($"client[{ev.ProxyEndPoint.Port}][{cep.Address.ToString()}:{cep.Port}] > direct");
+                log.Append($"client[{ev.ProxyEndPoint.Port}][{cep.Address.ToString()}:{cep.Port}] > direct ");
             }
 
-            ShowLog($"{request.Method} {request.Url}");
+            log.Append($"> {request.Method} {request.Url}");
+
+            ShowLog(log.ToString());
 
             await Task.CompletedTask;
         }
@@ -192,12 +262,16 @@ namespace ProxyLoginAutomator
             else
             {
                 ShowLog($"ex: {exception.Message}");
+                if (exception.InnerException != null)
+                {
+                    ShowLog($"InnerException: {exception.InnerException.Message}");
+                }
             }
         }
 
         void ShowLog(string log)
         {
-            if (ShowDebugLog) Console.WriteLine($"[{DateTime.Now}]{log}");
+            if (showDebugLog) Console.WriteLine($"[{DateTime.Now}]{log}");
         }
     }
 }
